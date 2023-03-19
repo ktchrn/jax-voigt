@@ -89,7 +89,7 @@ def _cf3(z):
 
 def _calc_weideman_coeffs(N):
     """
-    polynomial coefficients for Weideman 2014 rational approximation
+    polynomial coefficients for Weideman 1994 rational approximation
     """
     M = 2*N
     M2 = 2*M
