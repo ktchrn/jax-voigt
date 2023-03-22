@@ -7,20 +7,41 @@ from jax.lax import map as jmap
 from jax import custom_jvp
 
 
-__all__ = ["voigt_profile"]
+__all__ = ["voigt_profile", "astro_voigt_profile"]
 _ISQ_PI = 1/np.sqrt(np.pi)
 
 
 def voigt_profile(x, y):
     """
     Real part of the Faddeeva function. 
-    Args:
+    Arguments:
         x (real array or scalar): real part of wofz argument
         y: (non-negative real array or scalar): imaginary part of wofz argument, assumed non-negative
     Returns:
         Voigt profile (aka real part of Faddeeva function) evaluated at x+1j*y
     """
     return _wofz(x, y)[0]
+
+
+def astro_voigt_profile(centroid_redshift, b_c, Γ_ν0, eval_redshift, speed_of_light=299792.0):
+    """
+    Evaluate the Voigt profile function starting from astronomy-convention quantities.
+    Arguments:
+        centroid_redshift (float-like): Redshift of the profile center relative 
+                                        to the line rest frequency
+        Γ_ν0 (float-like): Damping constant Γ=γ*4π in units of the line rest frequency
+        b_c (float-like): Doppler broadening parameter b=sqrt(2)*σ in units of the speed of light
+        eval_redshift (float-like): 
+    Keyword arguments:
+        speed_of_light (float-like): c in units of your choice, default is in km/s
+    Returns:
+        Voigt profile in units of 1/[speed_of_light units]
+    """
+    c_b = 1/b_c
+    x = c_b*(eval_redshift - centroid_redshift)/(1+eval_redshift)
+    y = c_b*Γ_ν0/(4*np.pi)
+    vp = _ISQ_PI*(c_b/speed_of_light) * voigt_profile(x, y)
+    return vp
 
 
 @custom_jvp
