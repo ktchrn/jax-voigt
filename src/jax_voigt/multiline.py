@@ -8,7 +8,7 @@ import astropy.constants as aco
 
 c_in_cm_s = aco.c.to('cm/s').value
 # assuming N(v) in units of s/cm**3, rest wavelength in cm
-opacity_conversion_constant = np.pi*(aco.c*aco.a0*aco.alpha**2*u.cm).to('cm**3/s').value
+opacity_conversion_constant = np.pi*(aco.c*aco.a0*aco.alpha**2).to('cm**2/s').value
 
 from collections import namedtuple
 
