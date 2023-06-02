@@ -5,6 +5,9 @@ import jax.numpy as jnp
 from jax.lax import cond, switch
 from jax.lax import map as jmap
 from jax import custom_jvp
+import astropy.constants as aco
+
+c_in_cm_s = aco.c.to('cm/s').value
 
 
 __all__ = ["voigt_profile", "astro_voigt_profile"]
@@ -23,7 +26,7 @@ def voigt_profile(x, y):
     return _wofz(x, y)[0]
 
 
-def astro_voigt_profile(centroid_redshift, b_c, Γ_ν0, eval_redshift, speed_of_light=299792.0):
+def astro_voigt_profile(centroid_redshift, b_c, Γ_ν0, eval_redshift, speed_of_light=c_in_cm_s):
     """
     Evaluate the Voigt profile function starting from astronomy-convention quantities.
     Arguments:
@@ -33,7 +36,7 @@ def astro_voigt_profile(centroid_redshift, b_c, Γ_ν0, eval_redshift, speed_of_
         b_c (float-like): Doppler broadening parameter b=sqrt(2)*σ in units of the speed of light
         eval_redshift (float-like): 
     Keyword arguments:
-        speed_of_light (float-like): c in units of your choice, default is in km/s
+        speed_of_light (float-like): c in units of your choice, default is in cm/s
     Returns:
         Voigt profile in units of 1/[speed_of_light units]
     """
