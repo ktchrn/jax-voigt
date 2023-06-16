@@ -17,7 +17,7 @@ VoigtParams = namedtuple('VoigtParams', 'log10_N z b_cm_s')
 LineParams = namedtuple('LineParams', 'wave_rest_cm f Gamma__s')
 LineCompIndices = namedtuple('LineCompIndices', 'log10_N_idx z_idx b_idx')
 SegmentParams = namedtuple('SegmentParams', 'line_def line_comp_inds wave_eval_cm LSF')
-LinewiseSegmentParams = namedtuple('LinewiseSegmentParams', 'voigt_params_lines line_params wave_eval')
+LinewiseSegmentParams = namedtuple('LinewiseSegmentParams', 'voigt_params_lines line_params wave_eval_cm')
 
 
 def voigt_profile(voigt_params, line_params, wave_eval_cm):
@@ -46,7 +46,7 @@ def components_to_lines(compwise_voigt_params, segment_params_sets):
         voigt_params_lines = VoigtParams(compwise_voigt_params.log10_N[lci.log10_N_idx],
                                          compwise_voigt_params.z[lci.z_idx],
                                          compwise_voigt_params.b_cm_s[lci.b_idx])
-        return LinewiseSegmentParams(voigt_params_lines, segment_params.line_def, segment_params.wave)
+        return LinewiseSegmentParams(voigt_params_lines, segment_params.line_def, segment_params.wave_eval_cm)
     return [single_expand(segment_params) for segment_params in segment_params_sets]
 
 
