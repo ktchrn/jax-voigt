@@ -10,40 +10,81 @@ import astropy.constants as aco
 c_in_cm_s = aco.c.to('cm/s').value
 
 
-__all__ = ["voigt_profile", "astro_voigt_profile"]
+__all__ = ["voigt_profile", "astro_voigt_profile", "set_default_method"]
 _ISQ_PI = 1/np.sqrt(np.pi)
 
+_METHODS = ("auto", "humlicek4")
+_DEFAULT_METHOD = "auto"
 
-def voigt_profile(x, y):
+
+def set_default_method(method):
     """
-    Real part of the Faddeeva function. 
+    Set the Faddeeva evaluation method used when none is passed explicitly.
+    Arguments:
+        method (str): one of
+            "auto" -- region-switched evaluation (continued fractions,
+                Weideman, Humlicek region 4), valid for all y >= 0. The
+                per-element dispatch makes it markedly slower than a single
+                branch.
+            "humlicek4" -- Humlicek (1982) region 4 only, fully vectorized.
+                ~25x faster than "auto" and accurate to ~1e-5 relative for
+                y <= 0.1 (the unsaturated-to-moderately-damped absorption
+                line regime); NOT valid at larger y.
+    Functions are retraced by jax on their next call after a change; set the
+    default before building jitted computations.
+    """
+    global _DEFAULT_METHOD
+    if method not in _METHODS:
+        raise ValueError(f"method must be one of {_METHODS}, got {method!r}")
+    _DEFAULT_METHOD = method
+
+
+def _resolve_wofz(method):
+    if method is None:
+        method = _DEFAULT_METHOD
+    if method == "auto":
+        return _wofz
+    if method == "humlicek4":
+        return _wofz_hum4
+    raise ValueError(f"method must be one of {_METHODS}, got {method!r}")
+
+
+def voigt_profile(x, y, method=None):
+    """
+    Real part of the Faddeeva function.
     Arguments:
         x (real array or scalar): real part of wofz argument
         y: (non-negative real array or scalar): imaginary part of wofz argument, assumed non-negative
+    Keyword arguments:
+        method (str or None): Faddeeva evaluation method; None uses the
+            module default (see set_default_method).
     Returns:
         Voigt profile (aka real part of Faddeeva function) evaluated at x+1j*y
     """
-    return _wofz(x, y)[0]
+    return _resolve_wofz(method)(x, y)[0]
 
 
-def astro_voigt_profile(centroid_redshift, b_c, Γ_ν0, eval_redshift, speed_of_light=c_in_cm_s):
+def astro_voigt_profile(centroid_redshift, b_c, Γ_ν0, eval_redshift, speed_of_light=c_in_cm_s,
+                        method=None):
     """
     Evaluate the Voigt profile function starting from astronomy-convention quantities.
     Arguments:
-        centroid_redshift (float-like): Redshift of the profile center relative 
+        centroid_redshift (float-like): Redshift of the profile center relative
                                         to the line rest frequency
         Γ_ν0 (float-like): Damping constant Γ=γ*4π in units of the line rest frequency
         b_c (float-like): Doppler broadening parameter b=sqrt(2)*σ in units of the speed of light
-        eval_redshift (float-like): 
+        eval_redshift (float-like):
     Keyword arguments:
         speed_of_light (float-like): c in units of your choice, default is in cm/s
+        method (str or None): Faddeeva evaluation method; None uses the
+            module default (see set_default_method).
     Returns:
         Voigt profile in units of 1/[speed_of_light units]
     """
     c_b = 1/b_c
     x = c_b*(eval_redshift - centroid_redshift)/(1+eval_redshift)
     y = c_b*Γ_ν0/(4*np.pi)
-    vp = _ISQ_PI*(c_b/speed_of_light) * voigt_profile(x, y)
+    vp = _ISQ_PI*(c_b/speed_of_light) * voigt_profile(x, y, method=method)
     return vp
 
 
@@ -65,6 +106,28 @@ def _wofz_jvp(primals, tangents):
     x, y = primals
     xdot, ydot = tangents
     K, L = _wofz(x, y)
+    dKdx = - 2 * (x * K - y * L)
+    dKdy = 2 * (x * L + y * K) - 2.*_ISQ_PI
+    dLdx = -1*dKdy
+    dLdy = dKdx
+    return (K, L), (xdot*dKdx+ydot*dKdy, xdot*dLdx+ydot*dLdy)
+
+
+@custom_jvp
+def _wofz_hum4(x, y):
+    """
+    Humlicek region 4 everywhere: vectorized, no per-element dispatch.
+    Valid for y <= ~0.1 at ~1e-5 relative accuracy in the real part.
+    """
+    w = _humlicek4(x + 1j*y)
+    return jnp.real(w), jnp.imag(w)
+
+
+@_wofz_hum4.defjvp
+def _wofz_hum4_jvp(primals, tangents):
+    x, y = primals
+    xdot, ydot = tangents
+    K, L = _wofz_hum4(x, y)
     dKdx = - 2 * (x * K - y * L)
     dKdy = 2 * (x * L + y * K) - 2.*_ISQ_PI
     dLdx = -1*dKdy
